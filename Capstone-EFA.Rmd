@@ -1,0 +1,397 @@
+---
+title: "Capstone-EFA"
+author: "Annaliese Bronner"
+date: "10/26/2020"
+output: html_document
+---
+
+```{r}
+#install.packages("psych")
+library(psych)
+
+#install.packages("tidyverse")
+library(tidyverse)
+
+library(dplyr)
+
+```
+
+```{r}
+setwd("C:/Users/annal.000/Desktop/Microbiology Capstone/Project Data")
+ARS_data<- read.csv("ARS.csv")
+Socio_data <- read.csv("Socioeconomic Status.csv")
+Covid_data <- read.csv("Covid_data.csv")
+Excess_Deaths <- read.csv("WyoExcessDeathsbyCounty.csv")
+
+names(Socio_data)[names(Socio_data) == "State...County.Name"] <- "County"
+names(Socio_data)[names(Socio_data) == "All.Ages.in.Poverty.Percent"] <- "Percent_in_Poverty"
+Recent_Socio_data<-filter(Socio_data, Year == "2018")
+
+Sex_data <- data.frame(ARS_data$County, ARS_data$Percent.Female, ARS_data$Percent.Male)
+
+Combined_Sex_data <- read.csv("ARS_CombinedSexData.csv")
+
+Selected_Socio_data <- select(Recent_Socio_data, Year, County, Percent_in_Poverty)
+
+Combined_Race_data <- read.csv("ARS_CombinedRaceData.csv")
+
+SEM_Trial_1_data <- data.frame(ARS_data, Selected_Socio_data$Percent_in_Poverty)
+
+names(SEM_Trial_1_data)[names(SEM_Trial_1_data) == "Percent_in_Poverty"] <- "Percent.in.Poverty"
+
+Nonwhite_data<-read.csv("Race-Ethnicity-Non White.csv")
+
+AQI<- read.csv("Jared_Data.csv")
+
+SEM_Trial_2_data <- data.frame(ARS_data, Selected_Socio_data$Percent_in_Poverty, Covid_data$Cases.Per.Hundred.Thousand,Covid_data$Deaths,Nonwhite_data$Non.White, AQI$Overall.AQI, Excess_Deaths$October)
+
+names(SEM_Trial_2_data)[names(SEM_Trial_2_data) == "Covid_data.Cases.Per.Hundred.Thousand"] <- "Cases.Per.Hundred.Thousand"
+names(SEM_Trial_2_data)[names(SEM_Trial_2_data) == "Selected_Socio_data.Percent_in_Poverty"] <- "Percent.in.Poverty"
+names(SEM_Trial_2_data)[names(SEM_Trial_2_data) == "Covid_data.Deaths"]<-"Deaths"
+names(SEM_Trial_2_data)[names(SEM_Trial_2_data) == "Nonwhite_data.Non.White"] <- "Non.White"                        
+
+No_Albany<-SEM_Trial_2_data[SEM_Trial_2_data$County !="Albany",]
+
+No_Outliers <- SEM_Trial_2_data[SEM_Trial_2_data$County !="Carbon" & SEM_Trial_2_data$County !="Campbell",]
+
+Median_Age_Covid_Plot<-read.csv("Age and Covid Bar Graph.csv")  
+
+
+write.csv(SEM_Trial_2_data, "SEM_Final_Dataset.csv")
+```
+
+
+```{r}
+library(ggplot2)
+
+ggplot(data=ARS_data, aes(County,Median.Age)) +
+  geom_point() +
+  theme_minimal() +
+  xlab("County") +
+  ylab("Median Age")+
+   theme(axis.text.x = element_text(size = 10, angle = 60, hjust = 1)) 
+
+ggplot(data=ARS_data, aes(County,Population.Density)) +
+  geom_point() +
+  theme_minimal() +
+  xlab("County") +
+  ylab("Population Density")+
+   theme(axis.text.x = element_text(size = 10, angle = 60, hjust = 1))
+
+
+#install.packages("ggthemes")
+#install.packages("extrafont")
+#install.packages("plyr")
+#install.packages("scales")
+library(ggplot2)
+library(ggthemes)
+library(extrafont)
+library(plyr)
+library(scales)
+
+
+ggplot(Combined_Sex_data, aes(x = County, y = Percent, fill = Sex)) + 
+  geom_bar(stat = "identity") +
+  xlab("\nCounty") +
+  ylab("Percent of Population\n") +
+  guides(fill = FALSE) +
+  theme(axis.text.x = element_text(size = 10, angle = 60, hjust = 1)) +
+  geom_text(data=Combined_Sex_data, aes(x = County, y = Percent,label = paste0(Percent,"%")), size=2)
+
+
+ggplot(Combined_Race_data, aes(x = County, y = Percent, fill = Race),show.legend=TRUE) +
+  geom_bar(stat = "identity") +
+  theme(legend.position="right",legend.direction="vertical") + 
+  xlab("\nCounty") +
+  ylab("Percent of Population\n") +
+  guides(fill = FALSE) +
+  theme(axis.text.x = element_text(size = 10, angle = 60, hjust = 1))+
+  theme(legend.text=element_text(size=14),legend.title=element_text(size=14))
+
+```
+
+This code was a first trial to get a hang of the lavaan package, before I had all of the data needed for our actual models. The single squiggle means a one way analysis, the double squiggle means a two way analysis. Example: Median.Age with respect to American.Indian AND American.Indian with respect to Median.Age.
+
+This code can be disregarded. 
+```{r}
+#install.packages("lavaan")
+#install.packages("semPlot")
+#install.packages("dplyr")
+
+
+library(lavaan)  #for doing the CFA
+library(semPlot)  #for plotting your CFA
+library(dplyr)  #for subsetting data quickly if needed
+
+summary(m2<-lm(Percent.in.Poverty ~ Median.Age + American.Indian.and.Alaska.Native.alone, data=SEM_Trial_2_data))
+
+m2  <- 'Percent.in.Poverty ~ Median.Age + American.Indian.and.Alaska.Native.alone
+        Median.Age ~~ American.Indian.and.Alaska.Native.alone'
+m2.fit <- sem(m2, data=SEM_Trial_2_data)
+summary(m2.fit, stand=TRUE, rsq=TRUE)
+semPaths(m2.fit, what="std", whatLabels="std", residuals=FALSE, laBout="circle2")
+
+m3 <- 'Percent.in.Poverty ~ Median.Age + American.Indian.and.Alaska.Native.alone
+        Median.Age ~ American.Indian.and.Alaska.Native.alone'
+m3.fit <- sem(m3, data=SEM_Trial_2_data)
+summary(m3.fit, stand=TRUE, rsq=TRUE)
+semPaths(m3.fit, what="std", whatLabels="std", residuals=FALSE, laBout="circle2")
+modificationindices(m3.fit)
+
+```
+
+
+This is the code for the actual SEM models. Here I've run several different models to later run an AIC backwards selection to determine the best fit model. 
+```{r}
+
+summary(m4<-lm(Cases.Per.Hundred.Thousand ~ Median.Age + Percent.in.Poverty, data=SEM_Trial_2_data))
+
+
+m4  <- 'Cases.Per.Hundred.Thousand ~ Median.Age + Percent.in.Poverty
+        Median.Age ~~ Percent.in.Poverty'
+m4.fit <- sem(m4, data=SEM_Trial_2_data)
+summary(m4.fit, stand=TRUE, rsq=TRUE)
+semPaths(m4.fit, what="std", whatLabels="std", residuals=FALSE, laBout="circle2")
+
+
+
+ggplot(SEM_Trial_2_data, aes(x=Median.Age, y=Cases.Per.Hundred.Thousand)) +
+  geom_bar(stat="identity") +
+  xlab("Median Age")+
+  ylab("Cases Per 100,000")
+
+#In order to have both covid cases and covid deaths on the same graph I had to run a log transformation on both numbers. This made the difference in sizes significantly smaller and created a better visual. This took several tries, way more than it should have, but you can almost always find what you need on Google. The most difficult thing was figuring out how my data set needed to be formatted. 
+ggplot(Median_Age_Covid_Plot, aes(Median.Age, log(People),fill=Number)) +
+  geom_bar(stat="identity", position = "dodge")+
+  xlab("Median Age Group")+
+  ylab("Individuals")
+
+ ggplot(No_Albany, aes(Median.Age, Cases.Per.Hundred.Thousand))+
+   geom_point()
+ 
+ summary(m6<-lm(Cases.Per.Hundred.Thousand~ Non.White + Percent.in.Poverty + Median.Age + Population.Density, data=SEM_Trial_2_data))
+
+
+m6 <- 'Cases.Per.Hundred.Thousand ~ Non.White + Percent.in.Poverty + Median.Age + Population.Density
+        Non.White ~~ Percent.in.Poverty
+        Median.Age ~~ Percent.in.Poverty
+        Median.Age ~~ Non.White
+        Population.Density ~~ Non.White
+        Population.Density ~~ Percent.in.Poverty
+        Population.Density ~~ Median.Age'
+m6.fit <- sem(m6, data=SEM_Trial_2_data)
+summary(m6.fit, stand=TRUE, rsq=TRUE)
+semPaths(m6.fit, what="std", whatLabels="std", residuals=FALSE)
+modificationindices(m6.fit)
+
+m7 <- 'Cases.Per.Hundred.Thousand~Non.White+Median.Age+AQI.Overall.AQI
+        Non.White ~~ Median.Age
+        Median.Age ~~ AQI.Overall.AQI'
+m7.fit <- sem(m7, data=SEM_Trial_2_data)
+summary(m7.fit, stand=TRUE, rsq=TRUE)
+semPaths(m7.fit, what="std", whatLabels="std", residuals=FALSE)
+modificationindices(m7.fit)
+```
+
+
+```{r}
+#AIC Backwards Selection for model 5
+
+library(readr)
+library(lme4)
+
+summary(m5<-lm(Cases.Per.Hundred.Thousand~ Non.White + Percent.in.Poverty + Median.Age + Population.Density + Non.White*Percent.in.Poverty + Non.White*Median.Age + Population.Density*Median.Age + AQI.Overall.AQI, data=SEM_Trial_2_data))
+
+
+m5 <- 'Cases.Per.Hundred.Thousand ~ Non.White + Percent.in.Poverty + Median.Age + Population.Density + AQI.Overall.AQI
+        Non.White ~~ Percent.in.Poverty
+        Median.Age ~~ Percent.in.Poverty
+        Median.Age ~~ Non.White
+        Population.Density ~~ Non.White
+        Population.Density ~~ Percent.in.Poverty
+        Population.Density ~~ Median.Age
+        Non.White ~~ AQI.Overall.AQI
+        Median.Age ~~ AQI.Overall.AQI
+        Population.Density ~~ AQI.Overall.AQI
+        Percent.in.Poverty ~~ AQI.Overall.AQI'
+m5.fit <- sem(m5, data=SEM_Trial_2_data)
+summary(m5.fit, stand=TRUE, rsq=TRUE)
+semPaths(m5.fit, what="std", whatLabels="std", residuals=FALSE)
+modificationindices(m5.fit)
+
+m5<-lm(Cases.Per.Hundred.Thousand~ Non.White + Percent.in.Poverty + Median.Age + Population.Density + Non.White*Percent.in.Poverty + Non.White*Median.Age + Population.Density*Median.Age + AQI.Overall.AQI, data=SEM_Trial_2_data)
+
+
+#install.packages("MuMIn")
+library(MuMIn)
+AIC(m5)  #AIC Rate= 295.1616
+
+
+Reduced_5.1 <- lm(Cases.Per.Hundred.Thousand ~ Non.White + Percent.in.Poverty + Median.Age +Population.Density + AQI.Overall.AQI +  Non.White*Percent.in.Poverty + Non.White*Median.Age , data=SEM_Trial_2_data) #AIC Rate = 294.0964	
+
+Reduced_5.2 <- lm(Cases.Per.Hundred.Thousand ~ Non.White + Percent.in.Poverty + Median.Age + Population.Density + Non.White*Median.Age + Population.Density*Median.Age + AQI.Overall.AQI, data=SEM_Trial_2_data) #AIC Rate = 293.2799	
+
+Reduced_5.3 <- lm(Cases.Per.Hundred.Thousand ~ Non.White + Percent.in.Poverty +Median.Age + Population.Density + Non.White*Percent.in.Poverty + Population.Density*Median.Age + AQI.Overall.AQI, data=SEM_Trial_2_data)  #AIC Rate = 293.6813		
+AIC(Reduced_5.1, Reduced_5.2, Reduced_5.3)
+
+#The full model is the best fit for covid rate, so we will run no more reductions.
+
+
+Reduced_5.4 <- lm(Cases.Per.Hundred.Thousand~ Non.White + Percent.in.Poverty + Median.Age + Population.Density + AQI.Overall.AQI, data=SEM_Trial_2_data)
+AIC(Reduced_5.4) #AIC Rate = 291.209
+
+Reduced_5.5 <- lm(Cases.Per.Hundred.Thousand ~ Non.White + Percent.in.Poverty + Median.Age + AQI.Overall.AQI, data=SEM_Trial_2_data)
+AIC(Reduced_5.5) #AIC Rate = 290.0484
+
+Reduced_5.6 <- lm(Cases.Per.Hundred.Thousand ~ Non.White + Percent.in.Poverty + AQI.Overall.AQI, data=SEM_Trial_2_data)
+AIC(Reduced_5.6) #AIC Rate = 288.828
+
+Reduced_5.7 <- lm(Cases.Per.Hundred.Thousand ~ Median.Age + Percent.in.Poverty + AQI.Overall.AQI, data=SEM_Trial_2_data)
+AIC(Reduced_5.7) #AIC Rate = 289.2202
+
+Reduced_5.8 <- lm(Cases.Per.Hundred.Thousand~ Non.White +  Median.Age, data=SEM_Trial_2_data)
+AIC(Reduced_5.8) #AIC Rate = 367.8357
+
+Reduced_5.9 <- lm(Cases.Per.Hundred.Thousand~ Non.White + Median.Age + AQI.Overall.AQI, data=SEM_Trial_2_data)
+AIC(Reduced_5.9) #AIC Rate = 290.9076
+
+Reduced_5.10 <- lm(Cases.Per.Hundred.Thousand~ Non.White +  Median.Age + Population.Density, data=SEM_Trial_2_data)
+AIC(Reduced_5.10) #AIC Rate = 369.0629
+
+#Reduced 5.6 has the lowest AIC, so we will accept this as our best model for COVID rate. This only considers non-white percent of population and median age.
+```
+
+```{r}
+
+
+summary(m8<-lm(Deaths~ Non.White + Percent.in.Poverty + Median.Age + Population.Density + Non.White*Percent.in.Poverty + Non.White*Median.Age + Population.Density*Median.Age + AQI.Overall.AQI, data=SEM_Trial_2_data))
+
+
+m8 <- 'Deaths~ Non.White + Percent.in.Poverty + Median.Age + Population.Density +AQI.Overall.AQI
+        Non.White ~~ Percent.in.Poverty
+        Median.Age ~~ Percent.in.Poverty
+        Median.Age ~~ Non.White
+        Population.Density ~~ Non.White
+        Population.Density ~~ Percent.in.Poverty
+        Population.Density ~~ Median.Age
+        Non.White ~~ AQI.Overall.AQI
+        Median.Age ~~ AQI.Overall.AQI
+        Population.Density ~~ AQI.Overall.AQI
+        Percent.in.Poverty ~~ AQI.Overall.AQI'
+m8.fit <- sem(m8, data=SEM_Trial_2_data)
+summary(m8.fit, stand=TRUE, rsq=TRUE)
+semPaths(m8.fit, what="std", whatLabels="std", residuals=FALSE)
+modificationindices(m8.fit)
+
+
+m8<-lm(Deaths~ Non.White + Percent.in.Poverty + Median.Age + Population.Density + Non.White*Percent.in.Poverty + Non.White*Median.Age + Population.Density*Median.Age + AQI.Overall.AQI, data=SEM_Trial_2_data)
+
+#install.packages("MuMIn")
+library(MuMIn)
+AIC(m8) #AIC Deaths= 101.0684
+
+
+Reduced_8.1 <- lm(Deaths ~ Non.White + Percent.in.Poverty + Median.Age +Population.Density + Non.White*Percent.in.Poverty + Non.White*Median.Age +AQI.Overall.AQI, data=SEM_Trial_2_data)#AIC Deaths = 102.6117 
+
+Reduced_8.2 <- lm(Deaths ~ Non.White + Percent.in.Poverty + Median.Age + Population.Density + Non.White*Median.Age + Population.Density*Median.Age +AQI.Overall.AQI, data=SEM_Trial_2_data) #AIC = 103.4470	 	
+
+Reduced_8.3 <- lm(Deaths ~ Non.White + Percent.in.Poverty +Median.Age + Population.Density + Non.White*Percent.in.Poverty + Population.Density*Median.Age +AQI.Overall.AQI, data=SEM_Trial_2_data) #AIC = 102.9221 
+AIC(Reduced_8.1, Reduced_8.2, Reduced_8.3)
+
+#The full model is the best fit for covid deaths, so we will run no more reductions.
+
+```
+
+
+```{r}
+summary(m9<-lm(Excess_Deaths.October~ Non.White + Percent.in.Poverty + Median.Age + Population.Density + Non.White*Percent.in.Poverty + Non.White*Median.Age + Population.Density*Median.Age + AQI.Overall.AQI, data=SEM_Trial_2_data))
+
+
+m9 <- 'Excess_Deaths.October~ Non.White + Percent.in.Poverty + Median.Age + Population.Density +AQI.Overall.AQI
+        Non.White ~~ Percent.in.Poverty
+        Median.Age ~~ Percent.in.Poverty
+        Median.Age ~~ Non.White
+        Population.Density ~~ Non.White
+        Population.Density ~~ Percent.in.Poverty
+        Population.Density ~~ Median.Age
+        Non.White ~~ AQI.Overall.AQI
+        Median.Age ~~ AQI.Overall.AQI
+        Population.Density ~~ AQI.Overall.AQI
+        Percent.in.Poverty ~~ AQI.Overall.AQI'
+m9.fit <- sem(m9, data=SEM_Trial_2_data)
+summary(m9.fit, stand=TRUE, rsq=TRUE)
+semPaths(m9.fit, what="std", whatLabels="std", residuals=FALSE)
+modificationindices(m9.fit)
+
+
+```
+
+
+```{r}
+summary(m10<-lm(Deaths~ Non.White + Percent.in.Poverty + Median.Age + Population.Density + Non.White*Percent.in.Poverty + Non.White*Median.Age + Population.Density*Median.Age + AQI.Overall.AQI, data=No_Outliers))
+
+
+m10 <- 'Deaths~ Non.White + Percent.in.Poverty + Median.Age + Population.Density +AQI.Overall.AQI
+        Non.White ~~ Percent.in.Poverty
+        Median.Age ~~ Percent.in.Poverty
+        Median.Age ~~ Non.White
+        Population.Density ~~ Non.White
+        Population.Density ~~ Percent.in.Poverty
+        Population.Density ~~ Median.Age
+        Non.White ~~ AQI.Overall.AQI
+        Median.Age ~~ AQI.Overall.AQI
+        Population.Density ~~ AQI.Overall.AQI
+        Percent.in.Poverty ~~ AQI.Overall.AQI'
+m10.fit <- sem(m10, data=No_Outliers)
+summary(m10.fit, stand=TRUE, rsq=TRUE)
+semPaths(m10.fit, what="std", whatLabels="std", residuals=FALSE)
+modificationindices(m10.fit)
+
+```
+
+```{r}
+library(rsconnect)
+rsconnect::deployApp('Capstone-EFA.Rmd')
+summary(m11<-lm(Cases.Per.Hundred.Thousand~ Non.White + Percent.in.Poverty + Median.Age + Population.Density + Non.White*Percent.in.Poverty + Non.White*Median.Age + Population.Density*Median.Age + AQI.Overall.AQI, data=No_Outliers))
+
+
+m11 <- 'Cases.Per.Hundred.Thousand ~ Non.White + Percent.in.Poverty + Median.Age + Population.Density + AQI.Overall.AQI
+        Non.White ~~ Percent.in.Poverty
+        Median.Age ~~ Percent.in.Poverty
+        Median.Age ~~ Non.White
+        Population.Density ~~ Non.White
+        Population.Density ~~ Percent.in.Poverty
+        Population.Density ~~ Median.Age
+        Non.White ~~ AQI.Overall.AQI
+        Median.Age ~~ AQI.Overall.AQI
+        Population.Density ~~ AQI.Overall.AQI
+        Percent.in.Poverty ~~ AQI.Overall.AQI'
+m11.fit <- sem(m11, data=No_Outliers)
+summary(m11.fit, stand=TRUE, rsq=TRUE)
+semPaths(m11.fit, what="std", whatLabels="std", residuals=FALSE)
+modificationindices(m11.fit)
+
+```
+
+
+Calculating the correlation coefficient for covid cases per 100,000 and different factors. There are currently no strong correlations, some moderate. The correlation between covid cases and age changes quite a lot when taking out Albany county, which has the lowest median age and highest covid rate.(11/3/2020)
+```{r}
+ cor(No_Albany$Median.Age, No_Albany$Cases.Per.Hundred.Thousand)
+ 
+ cor(SEM_Trial_2_data$Population.Density,SEM_Trial_2_data$Cases.Per.Hundred.Thousand)
+ 
+ cor(SEM_Trial_2_data$Cases.Per.Hundred.Thousand, SEM_Trial_2_data$Percent.in.Poverty)
+ 
+ cor(SEM_Trial_2_data$Cases.Per.Hundred.Thousand, SEM_Trial_2_data$AQI.Overall.AQI, na.rm=TRUE)
+ 
+ cor(SEM_Trial_2_data$Cases.Per.Hundred.Thousand, SEM_Trial_2_data$American.Indian.and.Alaska.Native.alone)
+ 
+  cor(SEM_Trial_2_data$Cases.Per.Hundred.Thousand, SEM_Trial_2_data$White.alone)
+```
+
+
+This is how you can export a data frame you've made and convert it into a csv 11/17/20
+```{r}
+write.csv(SEM_Trial_2_data, "SEM_Trial_2_data.csv")
+```
+
